@@ -5,6 +5,7 @@
  */
 
 session_start();
+require_once __DIR__ . '/security_helpers.php';
 header('Content-Type: application/json');
 
 // Check authentication
@@ -27,6 +28,14 @@ $input = json_decode(file_get_contents('php://input'), true);
 if (!$input) {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid JSON']);
+    exit;
+}
+
+// Verify CSRF token
+$csrf = $input['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+if (!$csrf || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $csrf)) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Invalid or missing CSRF token']);
     exit;
 }
 

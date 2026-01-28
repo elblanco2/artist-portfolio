@@ -6,6 +6,7 @@
  */
 
 session_start();
+require_once __DIR__ . '/security_helpers.php';
 
 // Logging function for auth debugging
 function authLog($message, $data = []) {
@@ -70,6 +71,7 @@ if (isset($_SESSION['login_time']) && (time() - $_SESSION['login_time']) > $sess
 // Handle different actions
 switch ($action) {
     case 'login':
+        check_rate_limit('oauth_login', 10);
         authLog('Initiating OAuth login', ['provider' => $provider]);
         initiateOAuth($provider, $subdomain, $central_callback_url, $google_client_id);
         break;
@@ -98,6 +100,7 @@ switch ($action) {
         break;
 
     case 'magic_request':
+        check_rate_limit('magic_request', 5);
         // Handle magic link request via AJAX
         requestMagicLink($subdomain, $config);
         break;

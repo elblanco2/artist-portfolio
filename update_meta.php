@@ -5,6 +5,7 @@
  */
 
 session_start();
+require_once __DIR__ . '/security_helpers.php';
 header('Content-Type: application/json');
 
 // Check authentication
@@ -21,8 +22,23 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// Get data from request
-$input = json_decode(file_get_contents('php://input'), true);
+// Get data from request (support both JSON and form-urlencoded)
+$contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+if (strpos($contentType, 'application/json') !== false) {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+} else {
+    // Form-urlencoded (from dropdown change)
+    $input = $_POST;
+}
+
+// Verify CSRF token (from input body or X-CSRF-Token header)
+$csrf = $input['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+if (!$csrf || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $csrf)) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Invalid or missing CSRF token']);
+    exit;
+}
+
 $filename = $input['filename'] ?? '';
 $field = $input['field'] ?? '';
 $value = $input['value'] ?? '';
@@ -65,7 +81,7 @@ if ($field === 'tags') {
 }
 
 // Validate status values
-if ($field === 'status' && !in_array($value, ['available', 'sold', 'other'])) {
+if ($field === 'status' && !in_array($value, ['available', 'sold', 'on_display', 'pending', 'not_for_sale'])) {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid status value']);
     exit;
@@ -86,7 +102,7 @@ if (!isset($metadata[$filename])) {
 $metadata[$filename][$field] = $value;
 
 // Save metadata
-if (file_put_contents($metadata_file, json_encode($metadata, JSON_PRETTY_PRINT))) {
+if (file_put_contents($metadata_file, json_encode($metadata, JSON_PRETTY_PRINT), LOCK_EX)) {
     echo json_encode([
         'success' => true,
         'filename' => $filename,

@@ -5,6 +5,7 @@
  */
 
 session_start();
+require_once __DIR__ . '/security_helpers.php';
 
 // Check authentication
 if (!isset($_SESSION['artist_authenticated']) || !$_SESSION['artist_authenticated']) {
@@ -69,7 +70,11 @@ $delete_error = '';
 $delete_success = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    if ($_POST['action'] === 'delete_account') {
+    // Verify CSRF token
+    $csrf = $_POST['csrf_token'] ?? '';
+    if (!$csrf || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $csrf)) {
+        $delete_error = 'Invalid or expired form token. Please try again.';
+    } elseif ($_POST['action'] === 'delete_account') {
         $confirm_subdomain = trim($_POST['confirm_subdomain'] ?? '');
 
         // Verify confirmation matches
@@ -718,6 +723,7 @@ function deleteDirectory($dir) {
 
                 <form method="post" class="delete-form" onsubmit="return confirmDelete()">
                     <input type="hidden" name="action" value="delete_account">
+                    <?= csrf_field() ?>
 
                     <label for="confirm_subdomain">
                         Type <strong><?= htmlspecialchars($subdomain ?: 'your subdomain') ?></strong> to confirm:

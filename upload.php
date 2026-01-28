@@ -7,6 +7,7 @@
  */
 
 session_start();
+require_once __DIR__ . '/security_helpers.php';
 header('Content-Type: application/json');
 
 // Check authentication
@@ -41,9 +42,12 @@ $sizes = [
     'small' => 400
 ];
 
-// Social media image dimensions (1200x630 for optimal OG/Twitter cards)
+// Social media image dimensions (1200x675 for optimal X/Twitter cards - 16:9 ratio, 2025 standard)
 $social_width = 1200;
-$social_height = 630;
+$social_height = 675;
+
+// Verify CSRF token (from POST field or header)
+require_csrf();
 
 // Only accept POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -97,52 +101,6 @@ if (!move_uploaded_file($file['tmp_name'], $destination)) {
     http_response_code(500);
     echo json_encode(['error' => 'Failed to save file']);
     exit;
-}
-
-// Extract GPS coordinates from EXIF if available (before any conversions)
-$exifGps = ['latitude' => null, 'longitude' => null];
-if (function_exists('exif_read_data') && in_array($mimeType, ['image/jpeg', 'image/tiff'])) {
-    try {
-        $exif = @exif_read_data($destination, 'GPS', true);
-        if ($exif && isset($exif['GPS'])) {
-            $gps = $exif['GPS'];
-            if (isset($gps['GPSLatitude'], $gps['GPSLatitudeRef'], $gps['GPSLongitude'], $gps['GPSLongitudeRef'])) {
-                $lat = exifGpsToDecimal($gps['GPSLatitude'], $gps['GPSLatitudeRef']);
-                $lng = exifGpsToDecimal($gps['GPSLongitude'], $gps['GPSLongitudeRef']);
-                if ($lat !== null && $lng !== null && $lat >= -90 && $lat <= 90 && $lng >= -180 && $lng <= 180) {
-                    $exifGps['latitude'] = round($lat, 8);
-                    $exifGps['longitude'] = round($lng, 8);
-                }
-            }
-        }
-    } catch (Exception $e) {
-        // GPS extraction failed, continue without it
-    }
-}
-
-/**
- * Convert EXIF GPS to decimal degrees
- */
-function exifGpsToDecimal($coord, $ref) {
-    if (!is_array($coord) || count($coord) < 3) return null;
-    $deg = parseFrac($coord[0]);
-    $min = parseFrac($coord[1]);
-    $sec = parseFrac($coord[2]);
-    if ($deg === null || $min === null || $sec === null) return null;
-    $decimal = $deg + ($min / 60) + ($sec / 3600);
-    if ($ref === 'S' || $ref === 'W') $decimal *= -1;
-    return $decimal;
-}
-
-function parseFrac($v) {
-    if (is_numeric($v)) return (float)$v;
-    if (is_string($v) && strpos($v, '/') !== false) {
-        $p = explode('/', $v);
-        if (count($p) === 2 && is_numeric($p[0]) && is_numeric($p[1]) && $p[1] != 0) {
-            return (float)$p[0] / (float)$p[1];
-        }
-    }
-    return null;
 }
 
 // For TIFF/HEIC, convert to JPEG first using Imagick
@@ -288,44 +246,6 @@ if (function_exists('imagecreatefromjpeg')) {
                 }
             }
 
-            // Generate square map thumbnail (80x80, center cropped)
-            $mapSize = 80;
-            $mapThumb = imagecreatetruecolor($mapSize, $mapSize);
-
-            // Calculate crop area (center square)
-            $cropSize = min($origWidth, $origHeight);
-            $cropX = intval(($origWidth - $cropSize) / 2);
-            $cropY = intval(($origHeight - $cropSize) / 2);
-
-            imagecopyresampled(
-                $mapThumb, $sourceImage,
-                0, 0, $cropX, $cropY,
-                $mapSize, $mapSize,
-                $cropSize, $cropSize
-            );
-
-            $mapFilename = $baseName . '_map.' . $ext;
-            $mapPath = $uploadDir . $mapFilename;
-
-            switch ($mimeType) {
-                case 'image/jpeg':
-                    imagejpeg($mapThumb, $mapPath, 80);
-                    break;
-                case 'image/png':
-                    imagepng($mapThumb, $mapPath, 8);
-                    break;
-                case 'image/gif':
-                    imagegif($mapThumb, $mapPath);
-                    break;
-                case 'image/webp':
-                    if (function_exists('imagewebp')) {
-                        imagewebp($mapThumb, $mapPath, 80);
-                    }
-                    break;
-            }
-            imagedestroy($mapThumb);
-            $generatedSizes['map'] = $mapFilename;
-
             // Generate social media optimized image (1200x630)
             $socialImage = imagecreatetruecolor($social_width, $social_height);
 
@@ -433,9 +353,7 @@ if ($artist_id && $api_key) {
         'files' => $generatedSizes,
         'original_name' => $file['name'],
         'size' => $file['size'],
-        'mime_type' => $mimeType,
-        'exif_latitude' => $exifGps['latitude'],
-        'exif_longitude' => $exifGps['longitude']
+        'mime_type' => $mimeType
     ];
 
     $syncDebug['request_url'] = $painttwits_api . '/sync_artwork.php';

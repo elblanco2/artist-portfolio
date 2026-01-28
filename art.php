@@ -74,6 +74,11 @@ if (file_exists($social_filepath)) {
 $meta_file = __DIR__ . '/artwork_meta.json';
 $artwork_meta = file_exists($meta_file) ? json_decode(file_get_contents($meta_file), true) : [];
 
+// Get artwork status
+$artwork_status = $artwork_meta[$filename]['status'] ?? 'available';
+$status_labels = ['available' => 'Available', 'sold' => 'Sold', 'on_display' => 'On Display', 'pending' => 'Pending', 'not_for_sale' => 'Not For Sale'];
+$status_label = $status_labels[$artwork_status] ?? 'Available';
+
 if (isset($artwork_meta[$filename]['title']) && !empty($artwork_meta[$filename]['title'])) {
     // Use title from metadata (set via email upload or manual edit)
     $title = $artwork_meta[$filename]['title'];
@@ -242,7 +247,8 @@ $next_artwork = ($current_index < count($artworks) - 1) ? $artworks[$current_ind
             margin-bottom: 8px;
         }
 
-        .artwork-actions button {
+        .artwork-actions button,
+        .artwork-actions a {
             padding: 10px 16px;
             border: none;
             border-radius: 20px;
@@ -256,14 +262,54 @@ $next_artwork = ($current_index < count($artworks) - 1) ? $artworks[$current_ind
             font-weight: 500;
         }
 
-        .artwork-actions button:hover {
+        .artwork-actions button:hover,
+        .artwork-actions a:hover {
             transform: scale(1.03);
             box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
 
-        .artwork-actions button:active {
+        .artwork-actions button:active,
+        .artwork-actions a:active {
             transform: scale(0.98);
         }
+
+        /* Status dot - positioned at far right like a gallery wall label */
+        .status-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.8);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+            position: relative;
+            cursor: default;
+            padding: 0;
+            flex-shrink: 0;
+            margin-left: 0;
+        }
+        .status-indicator::after {
+            content: attr(data-label);
+            position: absolute;
+            left: 28px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0,0,0,0.8);
+            color: #fff;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .status-indicator:hover::after {
+            opacity: 1;
+        }
+        .status-available { background-color: #22c55e; }
+        .status-sold { background-color: #ef4444; }
+        .status-on_display { background-color: #f97316; }
+        .status-pending { background-color: #f59e0b; }
+        .status-not_for_sale { background-color: transparent; border-color: #ccc; }
 
         /* Brand-colored buttons with good contrast */
         .artwork-actions .btn-twitter {
@@ -443,13 +489,13 @@ $next_artwork = ($current_index < count($artworks) - 1) ? $artworks[$current_ind
         <p class="artist">by <a href="/"><?= htmlspecialchars($artist_name) ?></a></p>
 
         <div class="artwork-actions">
-            <button class="btn-twitter" onclick="shareTwitter()">
-                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                Twitter
-            </button>
             <button class="btn-bluesky" onclick="shareBluesky()">
                 <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.39 14.39c-.77.77-1.79 1.19-2.89 1.19s-2.12-.42-2.89-1.19c-.77-.77-1.19-1.79-1.19-2.89 0-.37.05-.73.14-1.08l-2.28-.76c-.11.59-.17 1.21-.17 1.84 0 1.66.65 3.22 1.83 4.39 1.17 1.18 2.73 1.83 4.39 1.83s3.22-.65 4.39-1.83c1.18-1.17 1.83-2.73 1.83-4.39 0-.63-.06-1.25-.17-1.84l-2.28.76c.09.35.14.71.14 1.08 0 1.1-.42 2.12-1.19 2.89z"/></svg>
                 Bluesky
+            </button>
+            <button class="btn-twitter" onclick="shareTwitter()">
+                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                Twitter
             </button>
             <button class="btn-pinterest" onclick="sharePinterest()">
                 <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 0C5.373 0 0 5.372 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738.098.119.112.224.083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.631-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12 0-6.628-5.373-12-12-12z"/></svg>
@@ -469,6 +515,7 @@ $next_artwork = ($current_index < count($artworks) - 1) ? $artworks[$current_ind
                 <svg viewBox="0 0 24 24"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/><path fill="currentColor" d="M12 10h-2v2H9v-2H7V9h2V7h1v2h2v1z"/></svg>
                 Explore Details
             </a>
+            <span class="status-indicator status-<?= htmlspecialchars($artwork_status) ?>" data-label="<?= htmlspecialchars($status_label) ?>"></span>
         </div>
     </div>
 

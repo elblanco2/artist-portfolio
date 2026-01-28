@@ -111,6 +111,8 @@
     function uploadFile(file, item) {
         var formData = new FormData();
         formData.append('artwork', file);
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        if (csrfMeta) formData.append('csrf_token', csrfMeta.content);
 
         fetch('upload.php', {
             method: 'POST',
@@ -155,10 +157,12 @@
     window.deleteArtwork = function(filename) {
         if (!confirm('Delete this artwork? This will also remove it from the main painttwits.com feed.')) return;
 
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        var csrfToken = csrfMeta ? csrfMeta.content : '';
         fetch('delete.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename: filename })
+            body: JSON.stringify({ filename: filename, csrf_token: csrfToken })
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {

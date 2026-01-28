@@ -5,6 +5,7 @@
  */
 
 session_start();
+require_once __DIR__ . '/security_helpers.php';
 
 // Load artist config if exists
 $config_file = __DIR__ . '/artist_config.php';
@@ -76,7 +77,8 @@ if (is_dir($uploads_dir)) {
             'filename' => $display_file,
             'original' => $basename,
             'title' => $title,
-            'tags' => $tags
+            'tags' => $tags,
+            'status' => $meta['status'] ?? 'available'
         ];
     }
 }
@@ -99,6 +101,9 @@ $shared_artwork = isset($_GET['art']) ? $_GET['art'] : null;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php if (!empty($_SESSION['artist_authenticated'])): ?>
+    <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
+    <?php endif; ?>
     <meta name="description" content="<?= htmlspecialchars($artist_name) ?> - Artist Portfolio<?= $site_name ? ' on ' . htmlspecialchars($site_name) : '' ?>">
     <title><?= htmlspecialchars($artist_name) ?></title>
     <link rel="stylesheet" href="assets/css/style.css">
@@ -111,11 +116,24 @@ $shared_artwork = isset($_GET['art']) ? $_GET['art'] : null;
     $og_description = 'View artwork by ' . $artist_name . ' on ' . ($site_name ?: 'this gallery') . '';
     $og_url = $current_url;
 
+    // Helper to get social-optimized image URL (1200x630)
+    function getSocialImageUrl($original_filename, $base_url) {
+        $pathinfo = pathinfo($original_filename);
+        $social_filename = $pathinfo['filename'] . '_social.' . $pathinfo['extension'];
+        $social_path = __DIR__ . '/uploads/' . $social_filename;
+
+        // Use _social version if it exists, otherwise fall back to original
+        if (file_exists($social_path)) {
+            return $base_url . '/uploads/' . $social_filename;
+        }
+        return $base_url . '/uploads/' . $original_filename;
+    }
+
     if ($shared_artwork && !empty($artworks)) {
         // Find the specific artwork being shared
         foreach ($artworks as $art) {
             if ($art['original'] === $shared_artwork) {
-                $og_image = $current_url . '/uploads/' . $art['original'];
+                $og_image = getSocialImageUrl($art['original'], $current_url);
                 $og_title = $art['title'] . ' by ' . $artist_name;
                 $og_description = 'Artwork by ' . $artist_name . ' on ' . ($site_name ?: 'this gallery') . '';
                 $og_url = $current_url . '?art=' . urlencode($art['original']);
@@ -127,7 +145,7 @@ $shared_artwork = isset($_GET['art']) ? $_GET['art'] : null;
     // Fall back to first artwork if no specific one found
     if (empty($og_image) && !empty($artworks)) {
         $first_art = $artworks[0];
-        $og_image = $current_url . '/uploads/' . $first_art['original'];
+        $og_image = getSocialImageUrl($first_art['original'], $current_url);
         $og_description = 'Discover ' . count($artworks) . ' artwork' . (count($artworks) > 1 ? 's' : '') . ' by ' . $artist_name . ' on ' . ($site_name ?: 'this gallery') . '';
     }
     ?>
@@ -140,16 +158,18 @@ $shared_artwork = isset($_GET['art']) ? $_GET['art'] : null;
     <?php if ($og_image): ?>
     <meta property="og:image" content="<?= htmlspecialchars($og_image) ?>">
     <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
+    <meta property="og:image:height" content="675">
     <?php endif; ?>
+    <meta property="og:site_name" content="painttwits">
 
-    <!-- Twitter Card -->
+    <!-- Twitter/X (2025 standards) -->
     <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@painttwits">
     <meta name="twitter:title" content="<?= htmlspecialchars($og_title) ?>">
     <meta name="twitter:description" content="<?= htmlspecialchars($og_description) ?>">
     <?php if ($og_image): ?>
     <meta name="twitter:image" content="<?= htmlspecialchars($og_image) ?>">
-    <meta name="twitter:image:alt" content="<?= htmlspecialchars($og_title) ?><?= $site_name ? ' - artwork on ' . htmlspecialchars($site_name) : '' ?>">
+    <meta name="twitter:image:alt" content="<?= htmlspecialchars($og_title) ?><?= $site_name ? ' - artwork by ' . htmlspecialchars($artist_name) : '' ?>">
     <?php endif; ?>
 </head>
 <body>
@@ -251,6 +271,13 @@ $shared_artwork = isset($_GET['art']) ? $_GET['art'] : null;
                         <?php if ($is_authenticated): ?>
                         <input type="text" class="title editable-title" value="<?= htmlspecialchars($art['title']) ?>" data-filename="<?= htmlspecialchars($art['original']) ?>" placeholder="Untitled">
                         <input type="text" class="editable-tags" value="<?= htmlspecialchars(implode(', ', $art_tags)) ?>" data-filename="<?= htmlspecialchars($art['original']) ?>" placeholder="tags (comma separated)">
+                        <select class="status-select" data-filename="<?= htmlspecialchars($art['original']) ?>" onchange="updateStatus(this)">
+                            <option value="available"<?= $art['status'] === 'available' ? ' selected' : '' ?>>&#x1F7E2; Available</option>
+                            <option value="sold"<?= $art['status'] === 'sold' ? ' selected' : '' ?>>&#x1F534; Sold</option>
+                            <option value="on_display"<?= $art['status'] === 'on_display' ? ' selected' : '' ?>>&#x1F7E0; On Display</option>
+                            <option value="pending"<?= $art['status'] === 'pending' ? ' selected' : '' ?>>&#x1F7E1; Pending</option>
+                            <option value="not_for_sale"<?= $art['status'] === 'not_for_sale' ? ' selected' : '' ?>>&#x26AA; Not For Sale</option>
+                        </select>
                         <?php else: ?>
                         <span class="title"><?= htmlspecialchars($art['title']) ?></span>
                         <?php if (!empty($art_tags)): ?>
@@ -271,8 +298,8 @@ $shared_artwork = isset($_GET['art']) ? $_GET['art'] : null;
                         </div>
                     </div>
                     <div class="share-inline" data-filename="<?= htmlspecialchars($art['original']) ?>" data-title="<?= htmlspecialchars($art['title']) ?>">
-                        <button type="button" onclick="shareTwitter(this)" title="Twitter/X"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></button>
                         <button type="button" onclick="shareBluesky(this)" title="Bluesky"><svg viewBox="0 0 600 530" width="18" height="18"><path fill="currentColor" d="m135.72 44.03c66.496 49.921 138.02 151.14 164.28 205.46 26.262-54.316 97.782-155.54 164.28-205.46 47.98-36.021 125.72-63.892 125.72 24.795 0 17.712-10.155 148.79-16.111 170.07-20.703 73.984-96.144 92.854-163.25 81.433 117.3 19.964 147.14 86.092 82.697 152.22-122.39 125.59-175.91-31.511-189.63-71.766-2.514-7.3797-3.6904-10.832-3.7077-7.8964-0.0174-2.9357-1.1937 0.51669-3.7077 7.8964-13.714 40.255-67.233 197.36-189.63 71.766-64.444-66.128-34.605-132.26 82.697-152.22-67.108 11.421-142.55-7.4491-163.25-81.433-5.9562-21.282-16.111-152.36-16.111-170.07 0-88.687 77.742-60.816 125.72-24.795z"/></svg></button>
+                        <button type="button" onclick="shareTwitter(this)" title="Twitter/X"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></button>
                         <button type="button" onclick="sharePinterest(this)" title="Pinterest"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 0C5.373 0 0 5.372 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738.098.119.112.224.083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.631-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12 0-6.628-5.373-12-12-12z"/></svg></button>
                         <button type="button" onclick="copyLink(this)" title="Copy link"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
                         <button type="button" onclick="createVideo(this)" title="Create Video"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg></button>
@@ -415,6 +442,24 @@ $shared_artwork = isset($_GET['art']) ? $_GET['art'] : null;
             window.location.href = videoUrl + '?' + params.toString();
         }
 
+        function updateStatus(select) {
+            var filename = select.getAttribute('data-filename');
+            var value = select.value;
+            var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+            fetch('/update_meta.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'filename=' + encodeURIComponent(filename) + '&field=status&value=' + encodeURIComponent(value) + '&csrf_token=' + encodeURIComponent(csrfToken)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    select.style.outline = '2px solid #22c55e';
+                    setTimeout(function() { select.style.outline = ''; }, 1000);
+                }
+            });
+        }
+
         // Close menus when clicking outside
         document.addEventListener('click', function(e) {
             if (!e.target.closest('.share-inline') && !e.target.closest('.btn-share')) {
@@ -453,10 +498,11 @@ $shared_artwork = isset($_GET['art']) ? $_GET['art'] : null;
 
         function saveArtworkTitle(filename, title, input) {
             input.style.opacity = '0.5';
+            var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
             fetch('update_meta.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filename: filename, field: 'title', value: title })
+                body: JSON.stringify({ filename: filename, field: 'title', value: title, csrf_token: csrfToken })
             })
             .then(function(r) { return r.json(); })
             .then(function(data) {
@@ -501,10 +547,11 @@ $shared_artwork = isset($_GET['art']) ? $_GET['art'] : null;
             saveBioBtn.textContent = 'saving...';
             saveBioBtn.disabled = true;
 
+            var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
             fetch('update_profile.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ bio: bio })
+                body: JSON.stringify({ bio: bio, csrf_token: csrfToken })
             })
             .then(function(r) { return r.json(); })
             .then(function(data) {
