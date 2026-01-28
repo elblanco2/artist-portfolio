@@ -68,17 +68,32 @@ if (isset($_SESSION['login_time']) && (time() - $_SESSION['login_time']) > $sess
     session_start();
 }
 
+// Determine if this site has Google OAuth configured
+$has_google_oauth = !empty($google_client_id);
+
 // Handle different actions
 switch ($action) {
     case 'login':
         check_rate_limit('oauth_login', 10);
-        authLog('Initiating OAuth login', ['provider' => $provider]);
-        initiateOAuth($provider, $subdomain, $central_callback_url, $google_client_id);
+        if ($has_google_oauth && $provider === 'google') {
+            authLog('Initiating OAuth login', ['provider' => $provider]);
+            initiateOAuth($provider, $subdomain, $central_callback_url, $google_client_id);
+        } else {
+            // No Google OAuth configured - redirect to magic link form
+            header('Location: /auth.php?action=magic');
+            exit;
+        }
         break;
 
     case 'verify':
         authLog('Verifying token');
         verifyToken($signing_secret, $config);
+        break;
+
+    case 'magic_verify':
+        // Verify a local magic link token
+        check_rate_limit('magic_verify', 20);
+        verifyMagicToken($signing_secret, $config);
         break;
 
     case 'logout':
@@ -101,7 +116,7 @@ switch ($action) {
 
     case 'magic_request':
         check_rate_limit('magic_request', 5);
-        // Handle magic link request via AJAX
+        // Handle magic link request
         requestMagicLink($subdomain, $config);
         break;
 
@@ -489,7 +504,7 @@ function showMagicLinkForm($subdomain, $config) {
 }
 
 /**
- * Handle magic link request - calls central API
+ * Handle magic link request - sends email directly from this server
  */
 function requestMagicLink($subdomain, $config) {
     header('Content-Type: application/json');
@@ -502,41 +517,140 @@ function requestMagicLink($subdomain, $config) {
         exit;
     }
 
-    // Verify email matches this subdomain's artist
+    // Verify email matches this site's artist
     $artist_email = strtolower(trim($config['email'] ?? ''));
     if ($email !== $artist_email) {
         authLog('Magic link rejected: email mismatch', ['expected' => $artist_email, 'got' => $email]);
-        echo json_encode(['success' => false, 'error' => 'This email is not associated with this gallery']);
+        // Don't reveal whether the email exists - always show success to prevent enumeration
+        echo json_encode(['success' => true, 'message' => 'If this email is associated with this gallery, a sign-in link has been sent.']);
         exit;
     }
 
-    // Call central magic link API
-    $central_api = $config['central_api'] ?? $config['painttwits_api'] ?? 'https://painttwits.com/api';
-    $magic_url = rtrim($central_api, '/') . '/../auth/magic-request.php';
-
-    $ch = curl_init($magic_url);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-        'email' => $email,
-        'purpose' => 'subdomain',
-        'target' => $subdomain
-    ]));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-    $response = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($http_code === 200 && $response) {
-        $result = json_decode($response, true);
-        if ($result && isset($result['success'])) {
-            echo json_encode($result);
-            exit;
-        }
+    // Generate a signed magic link token
+    $signing_secret = $config['auth_signing_secret'] ?? '';
+    if (empty($signing_secret)) {
+        authLog('Magic link failed: no signing secret configured');
+        echo json_encode(['success' => false, 'error' => 'Authentication is not configured. Please check your setup.']);
+        exit;
     }
 
-    authLog('Magic link API failed', ['http_code' => $http_code, 'response' => $response]);
-    echo json_encode(['success' => false, 'error' => 'Failed to send magic link. Please try again.']);
+    $payload = [
+        'email' => $email,
+        'name' => $config['name'] ?? 'Artist',
+        'iat' => time(),
+        'exp' => time() + 900, // 15 minute expiry
+        'type' => 'magic_link',
+    ];
+
+    $payload_encoded = base64_encode(json_encode($payload));
+    $signature = hash_hmac('sha256', $payload_encoded, $signing_secret);
+    $token = $payload_encoded . '.' . $signature;
+
+    // Build verify URL on this site
+    $site_url = rtrim($config['site_url'] ?? '', '/');
+    if (empty($site_url)) {
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $site_url = $protocol . '://' . $_SERVER['HTTP_HOST'];
+    }
+    $verify_url = $site_url . '/auth.php?action=magic_verify&token=' . urlencode($token);
+
+    // Send email
+    $site_name = $config['site_name'] ?? $config['name'] ?? 'Gallery';
+    $subject = "Sign in to {$site_name}";
+    $body = "Hi {$config['name']},\n\n";
+    $body .= "Click the link below to sign in to your gallery:\n\n";
+    $body .= $verify_url . "\n\n";
+    $body .= "This link expires in 15 minutes.\n\n";
+    $body .= "If you didn't request this, you can ignore this email.\n";
+
+    $headers = [
+        'From: ' . $site_name . ' <noreply@' . ($config['site_domain'] ?? $_SERVER['HTTP_HOST']) . '>',
+        'Content-Type: text/plain; charset=UTF-8',
+    ];
+
+    $mail_sent = @mail($email, $subject, $body, implode("\r\n", $headers));
+
+    if (!$mail_sent) {
+        authLog('Magic link email failed', ['email' => $email]);
+        echo json_encode(['success' => false, 'error' => 'Failed to send email. Please check your server mail configuration.']);
+        exit;
+    }
+
+    authLog('Magic link sent', ['email' => $email]);
+    echo json_encode(['success' => true, 'message' => 'Check your email for the sign-in link!']);
+    exit;
+}
+
+/**
+ * Verify a magic link token and log the artist in
+ */
+function verifyMagicToken($signing_secret, $config) {
+    $token = $_GET['token'] ?? '';
+
+    if (empty($token) || empty($signing_secret)) {
+        header('Location: /?error=' . urlencode('Invalid sign-in link'));
+        exit;
+    }
+
+    // Parse token: base64_payload.signature
+    $parts = explode('.', $token, 2);
+    if (count($parts) !== 2) {
+        header('Location: /?error=' . urlencode('Invalid sign-in link'));
+        exit;
+    }
+
+    $payload_encoded = $parts[0];
+    $signature = $parts[1];
+
+    // Verify signature
+    $expected_signature = hash_hmac('sha256', $payload_encoded, $signing_secret);
+    if (!hash_equals($expected_signature, $signature)) {
+        authLog('Magic link verification failed: bad signature');
+        header('Location: /?error=' . urlencode('Invalid or expired sign-in link'));
+        exit;
+    }
+
+    // Decode payload
+    $payload = json_decode(base64_decode($payload_encoded), true);
+    if (!$payload) {
+        header('Location: /?error=' . urlencode('Invalid sign-in link'));
+        exit;
+    }
+
+    // Check expiration
+    if (isset($payload['exp']) && time() > $payload['exp']) {
+        authLog('Magic link expired', ['email' => $payload['email'] ?? '']);
+        header('Location: /?error=' . urlencode('This sign-in link has expired. Please request a new one.'));
+        exit;
+    }
+
+    // Check type
+    if (($payload['type'] ?? '') !== 'magic_link') {
+        header('Location: /?error=' . urlencode('Invalid sign-in link'));
+        exit;
+    }
+
+    // Verify email matches config
+    $artist_email = strtolower(trim($config['email'] ?? ''));
+    $token_email = strtolower(trim($payload['email'] ?? ''));
+
+    if ($artist_email !== $token_email) {
+        authLog('Magic link email mismatch', ['expected' => $artist_email, 'got' => $token_email]);
+        header('Location: /?error=' . urlencode('This sign-in link is not valid for this gallery'));
+        exit;
+    }
+
+    authLog('Magic link login SUCCESS', ['email' => $token_email]);
+
+    // Set session
+    session_regenerate_id(true);
+    $_SESSION['artist_authenticated'] = true;
+    $_SESSION['artist_email'] = $token_email;
+    $_SESSION['artist_name'] = $payload['name'] ?? $config['name'] ?? 'Artist';
+    $_SESSION['artist_picture'] = '';
+    $_SESSION['oauth_provider'] = 'magic_link';
+    $_SESSION['login_time'] = time();
+
+    header('Location: /');
     exit;
 }
