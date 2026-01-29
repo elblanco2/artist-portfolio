@@ -541,8 +541,8 @@ function deleteDirectory($dir) {
             </p>
         </div>
 
-        <!-- Multi-Subdomain Info / Upgrade -->
-        <?php if (!empty($central_api)): ?>
+        <!-- Multi-Subdomain Info / Upgrade (only for painttwits-managed subdomain artists) -->
+        <?php if (!empty($central_api) && !empty($subdomain)): ?>
         <div class="settings-section">
             <?php $canCreateMore = $is_paid_multi || ($subdomain_count < $max_subdomains); ?>
 
