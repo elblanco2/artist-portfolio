@@ -117,21 +117,52 @@ if ($artist_location) {
     $og_description .= ' - ' . $artist_location;
 }
 
+// Check for exhibit context
+$exhibit_slug = isset($_GET['exhibit']) ? preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['exhibit'])) : '';
+$exhibit_title = '';
+$in_exhibit = false;
+
 // Get all artworks for navigation
 $artworks = [];
-foreach (glob($uploads_dir . '*.{jpg,jpeg,png,gif,webp}', GLOB_BRACE) as $file) {
-    $basename = basename($file);
-    // Skip resized versions
-    if (preg_match('/_(?:large|medium|small|social)\.[a-z]+$/i', $basename)) {
-        continue;
+
+if ($exhibit_slug) {
+    // Exhibit-scoped navigation
+    $exhibits_file = __DIR__ . '/exhibits.json';
+    $exhibits = file_exists($exhibits_file) ? json_decode(file_get_contents($exhibits_file), true) : [];
+    if (isset($exhibits[$exhibit_slug]) && $exhibits[$exhibit_slug]['status'] === 'published') {
+        $in_exhibit = true;
+        $exhibit_title = $exhibits[$exhibit_slug]['title'] ?? '';
+        $exhibit_artworks = $exhibits[$exhibit_slug]['artworks'] ?? [];
+        // Filter to only existing files
+        foreach ($exhibit_artworks as $fname) {
+            if (file_exists($uploads_dir . $fname)) {
+                $artworks[] = $fname;
+            }
+        }
     }
-    $artworks[] = $basename;
+}
+
+// Fall back to all artworks if not in exhibit or exhibit not found
+if (empty($artworks)) {
+    $in_exhibit = false;
+    $exhibit_slug = '';
+    foreach (glob($uploads_dir . '*.{jpg,jpeg,png,gif,webp}', GLOB_BRACE) as $file) {
+        $basename = basename($file);
+        // Skip resized versions
+        if (preg_match('/_(?:large|medium|small|social)\.[a-z]+$/i', $basename)) {
+            continue;
+        }
+        $artworks[] = $basename;
+    }
 }
 
 // Find current position and neighbors
 $current_index = array_search($filename, $artworks);
-$prev_artwork = ($current_index > 0) ? $artworks[$current_index - 1] : null;
-$next_artwork = ($current_index < count($artworks) - 1) ? $artworks[$current_index + 1] : null;
+$prev_artwork = ($current_index !== false && $current_index > 0) ? $artworks[$current_index - 1] : null;
+$next_artwork = ($current_index !== false && $current_index < count($artworks) - 1) ? $artworks[$current_index + 1] : null;
+
+// Build nav URL suffix for exhibit context
+$nav_suffix = $in_exhibit ? '&exhibit=' . urlencode($exhibit_slug) : '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -690,13 +721,13 @@ $next_artwork = ($current_index < count($artworks) - 1) ? $artworks[$current_ind
 
     <nav class="artwork-nav">
         <?php if ($prev_artwork): ?>
-        <a href="/art.php?f=<?= urlencode($prev_artwork) ?>">&larr; Previous</a>
+        <a href="/art.php?f=<?= urlencode($prev_artwork) ?><?= $nav_suffix ?>">&larr; Previous</a>
         <?php else: ?>
         <span class="disabled">&larr; Previous</span>
         <?php endif; ?>
 
         <?php if ($next_artwork): ?>
-        <a href="/art.php?f=<?= urlencode($next_artwork) ?>">Next &rarr;</a>
+        <a href="/art.php?f=<?= urlencode($next_artwork) ?><?= $nav_suffix ?>">Next &rarr;</a>
         <?php else: ?>
         <span class="disabled">Next &rarr;</span>
         <?php endif; ?>
@@ -707,6 +738,12 @@ $next_artwork = ($current_index < count($artworks) - 1) ? $artworks[$current_ind
         swipe left/right to browse artwork
         <?php endif; ?>
     </div>
+
+    <?php if ($in_exhibit): ?>
+    <div class="back-to-gallery" style="border-bottom:1px solid var(--border);">
+        <a href="/exhibit/<?= htmlspecialchars($exhibit_slug) ?>">&larr; Back to "<?= htmlspecialchars($exhibit_title) ?>"</a>
+    </div>
+    <?php endif; ?>
 
     <div class="back-to-gallery">
         <a href="/">View All Artwork by <?= htmlspecialchars($artist_name) ?></a>
@@ -770,6 +807,7 @@ $next_artwork = ($current_index < count($artworks) - 1) ? $artworks[$current_ind
         // Swipe navigation
         var prevArtwork = <?= json_encode($prev_artwork) ?>;
         var nextArtwork = <?= json_encode($next_artwork) ?>;
+        var navSuffix = <?= json_encode($nav_suffix) ?>;
         var heroEl = document.querySelector('.artwork-hero');
         var touchStartX = 0;
         var touchStartY = 0;
@@ -798,13 +836,13 @@ $next_artwork = ($current_index < count($artworks) - 1) ? $artworks[$current_ind
                     // Swipe right -> previous
                     heroEl.classList.add('swiping-right');
                     setTimeout(function() {
-                        window.location.href = '/art.php?f=' + encodeURIComponent(prevArtwork);
+                        window.location.href = '/art.php?f=' + encodeURIComponent(prevArtwork) + navSuffix;
                     }, 200);
                 } else if (deltaX < 0 && nextArtwork) {
                     // Swipe left -> next
                     heroEl.classList.add('swiping-left');
                     setTimeout(function() {
-                        window.location.href = '/art.php?f=' + encodeURIComponent(nextArtwork);
+                        window.location.href = '/art.php?f=' + encodeURIComponent(nextArtwork) + navSuffix;
                     }, 200);
                 }
             }
@@ -883,9 +921,9 @@ $next_artwork = ($current_index < count($artworks) - 1) ? $artworks[$current_ind
         // Keyboard navigation
         document.addEventListener('keydown', function(e) {
             if (e.key === 'ArrowLeft' && prevArtwork) {
-                window.location.href = '/art.php?f=' + encodeURIComponent(prevArtwork);
+                window.location.href = '/art.php?f=' + encodeURIComponent(prevArtwork) + navSuffix;
             } else if (e.key === 'ArrowRight' && nextArtwork) {
-                window.location.href = '/art.php?f=' + encodeURIComponent(nextArtwork);
+                window.location.href = '/art.php?f=' + encodeURIComponent(nextArtwork) + navSuffix;
             }
         });
     </script>

@@ -685,3 +685,80 @@ footer {
     border-color: var(--gray);
     color: var(--black);
 }
+
+/* ============================================
+   EXHIBITS
+   ============================================ */
+
+.exhibit-group-label {
+    font-size: 0.85rem;
+    font-weight: normal;
+    text-transform: lowercase;
+    color: var(--gray);
+    margin: 1.5rem 0 0.75rem;
+    letter-spacing: 0.05em;
+}
+
+.exhibit-group-label:first-of-type {
+    margin-top: 0.5rem;
+}
+
+.exhibits-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.exhibit-card {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    border: 1px solid var(--light-gray);
+    transition: border-color 0.2s, transform 0.2s;
+}
+
+.exhibit-card:hover {
+    border-color: var(--gray);
+    transform: translateY(-2px);
+    text-decoration: none;
+}
+
+.exhibit-card img {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    display: block;
+}
+
+.exhibit-card-empty {
+    width: 100%;
+    height: 160px;
+    background: var(--light-gray);
+}
+
+.exhibit-card-info {
+    padding: 0.75rem;
+}
+
+.exhibit-card-title {
+    display: block;
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+}
+
+.exhibit-card-meta {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--gray);
+}
+
+@media (max-width: 600px) {
+    .exhibits-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 1rem;
+    }
+    .exhibit-card img {
+        height: 120px;
+    }
+}

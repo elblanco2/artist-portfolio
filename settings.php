@@ -720,6 +720,86 @@ function deleteDirectory($dir) {
             </div>
         </div>
 
+        <!-- Exhibits -->
+        <div class="settings-section">
+            <h2>Exhibits</h2>
+            <p>Group artworks into curated exhibits, shows, or series.</p>
+
+            <div id="exhibits-list" style="margin-bottom:1.5rem;">
+                <p style="color:#999;">Loading exhibits...</p>
+            </div>
+
+            <button type="button" id="new-exhibit-btn" onclick="showExhibitForm()" style="padding:0.6rem 1.2rem;background:var(--black, #111);color:var(--white, #fafafa);border:none;border-radius:4px;cursor:pointer;font-size:0.9rem;">+ New Exhibit</button>
+
+            <div id="exhibit-form" style="display:none;margin-top:1.5rem;padding:1.5rem;border:1px solid #ddd;border-radius:8px;">
+                <h3 style="margin:0 0 1rem;font-weight:normal;">Create / Edit Exhibit</h3>
+                <input type="hidden" id="exhibit-slug" value="">
+
+                <div style="margin-bottom:1rem;">
+                    <label style="display:block;font-size:0.85rem;margin-bottom:0.25rem;">Title *</label>
+                    <input type="text" id="exhibit-title" style="width:100%;padding:0.5rem;border:1px solid #ccc;border-radius:4px;font-family:inherit;" placeholder="Summer Landscapes">
+                </div>
+
+                <div style="margin-bottom:1rem;">
+                    <label style="display:block;font-size:0.85rem;margin-bottom:0.25rem;">Description</label>
+                    <textarea id="exhibit-description" rows="3" style="width:100%;padding:0.5rem;border:1px solid #ccc;border-radius:4px;font-family:inherit;resize:vertical;" placeholder="A series exploring..."></textarea>
+                </div>
+
+                <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
+                    <div>
+                        <label style="display:block;font-size:0.85rem;margin-bottom:0.25rem;">Duration</label>
+                        <select id="exhibit-duration" onchange="toggleDateFields()" style="padding:0.5rem;border:1px solid #ccc;border-radius:4px;font-family:inherit;">
+                            <option value="temporary">Temporary</option>
+                            <option value="permanent">Permanent</option>
+                        </select>
+                    </div>
+                    <div id="date-fields">
+                        <label style="display:block;font-size:0.85rem;margin-bottom:0.25rem;">Start Date</label>
+                        <input type="date" id="exhibit-start" style="padding:0.5rem;border:1px solid #ccc;border-radius:4px;">
+                        <label style="display:block;font-size:0.85rem;margin:0.5rem 0 0.25rem;">End Date</label>
+                        <input type="date" id="exhibit-end" style="padding:0.5rem;border:1px solid #ccc;border-radius:4px;">
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:200px;">
+                        <label style="display:block;font-size:0.85rem;margin-bottom:0.25rem;">Venue</label>
+                        <input type="text" id="exhibit-venue" style="width:100%;padding:0.5rem;border:1px solid #ccc;border-radius:4px;font-family:inherit;" placeholder="Studio 42, Brooklyn NY">
+                    </div>
+                    <div style="flex:1;min-width:200px;">
+                        <label style="display:block;font-size:0.85rem;margin-bottom:0.25rem;">Opening Reception</label>
+                        <input type="datetime-local" id="exhibit-reception" style="width:100%;padding:0.5rem;border:1px solid #ccc;border-radius:4px;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom:1rem;">
+                    <label style="display:block;font-size:0.85rem;margin-bottom:0.25rem;">Press Release</label>
+                    <textarea id="exhibit-press" rows="3" style="width:100%;padding:0.5rem;border:1px solid #ccc;border-radius:4px;font-family:inherit;resize:vertical;" placeholder="Optional press release text..."></textarea>
+                </div>
+
+                <div style="margin-bottom:1rem;">
+                    <label style="display:block;font-size:0.85rem;margin-bottom:0.25rem;">Status</label>
+                    <select id="exhibit-status" style="padding:0.5rem;border:1px solid #ccc;border-radius:4px;font-family:inherit;">
+                        <option value="draft">Draft</option>
+                        <option value="published">Published</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom:1rem;">
+                    <label style="display:block;font-size:0.85rem;margin-bottom:0.5rem;">Select Artworks (click to toggle)</label>
+                    <div id="exhibit-artwork-picker" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;max-height:300px;overflow-y:auto;padding:4px;border:1px solid #eee;border-radius:4px;">
+                        <p style="color:#999;grid-column:1/-1;">Loading artworks...</p>
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:0.75rem;">
+                    <button type="button" onclick="saveExhibit()" style="padding:0.6rem 1.2rem;background:#228B22;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.9rem;">Save Exhibit</button>
+                    <button type="button" onclick="hideExhibitForm()" style="padding:0.6rem 1.2rem;background:#eee;color:#333;border:none;border-radius:4px;cursor:pointer;font-size:0.9rem;">Cancel</button>
+                </div>
+                <div id="exhibit-form-result" style="margin-top:0.75rem;"></div>
+            </div>
+        </div>
+
         <!-- Danger Zone -->
         <div class="settings-section">
             <?php $confirm_text = $subdomain ?: ($config['site_domain'] ?? $config['email'] ?? ''); ?>
@@ -1075,7 +1155,241 @@ function deleteDirectory($dir) {
         // Initialize map when DOM is ready
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(initLocationMap, 100);
+            loadExhibits();
+            loadArtworkPicker();
         });
+
+        // ===== EXHIBITS =====
+        var csrfToken = '<?= addslashes(csrf_token()) ?>';
+        var allExhibits = {};
+        var selectedArtworks = [];
+
+        function exhibitApi(data) {
+            data.csrf_token = csrfToken;
+            return fetch('/update_exhibits.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(function(r) { return r.json(); });
+        }
+
+        function loadExhibits() {
+            exhibitApi({ action: 'list' }).then(function(res) {
+                if (!res.success) return;
+                allExhibits = res.exhibits || {};
+                renderExhibitList();
+            }).catch(function() {
+                document.getElementById('exhibits-list').innerHTML = '<p style="color:#999;">Could not load exhibits</p>';
+            });
+        }
+
+        function renderExhibitList() {
+            var list = document.getElementById('exhibits-list');
+            var slugs = Object.keys(allExhibits);
+            if (slugs.length === 0) {
+                list.innerHTML = '<p style="color:#999;">No exhibits yet. Create one to get started.</p>';
+                return;
+            }
+            var html = '';
+            slugs.forEach(function(slug) {
+                var ex = allExhibits[slug];
+                var count = (ex.artworks || []).length;
+                var badge = ex.status === 'published' ? '<span style="background:#dcfce7;color:#166534;padding:1px 6px;border-radius:3px;font-size:0.75rem;">published</span>' : '<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:3px;font-size:0.75rem;">draft</span>';
+                html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem;border:1px solid #ddd;border-radius:4px;margin-bottom:0.5rem;">';
+                html += '<div><strong>' + escHtml(ex.title || 'Untitled') + '</strong> ' + badge + '<br><span style="font-size:0.8rem;color:#666;">' + count + ' work' + (count !== 1 ? 's' : '') + (ex.duration === 'permanent' ? ' · permanent' : '') + '</span></div>';
+                html += '<div style="display:flex;gap:0.5rem;">';
+                html += '<button onclick="editExhibit(\'' + slug + '\')" style="padding:4px 10px;border:1px solid #ccc;background:white;border-radius:4px;cursor:pointer;font-size:0.8rem;">edit</button>';
+                html += '<a href="/exhibit/' + slug + '" target="_blank" style="padding:4px 10px;border:1px solid #ccc;background:white;border-radius:4px;font-size:0.8rem;text-decoration:none;color:inherit;">view</a>';
+                html += '<button onclick="deleteExhibit(\'' + slug + '\')" style="padding:4px 10px;border:1px solid #dcc;background:white;border-radius:4px;cursor:pointer;font-size:0.8rem;color:#c00;">delete</button>';
+                html += '</div></div>';
+            });
+            list.innerHTML = html;
+        }
+
+        function escHtml(s) {
+            var d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        function loadArtworkPicker() {
+            var picker = document.getElementById('exhibit-artwork-picker');
+            var uploadsDir = '/uploads/';
+            // Fetch artwork list from the gallery (reuse file listing)
+            fetch('/?format=json').then(function(r) { return r.text(); }).catch(function() { return ''; });
+            // Simpler: just read from DOM or use a direct scan. Since we can't easily, use a helper endpoint.
+            // Instead, let's just populate from files we know about via the meta file.
+            fetch('/update_meta.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ csrf_token: csrfToken, filename: '_list_', field: 'title', value: '' })
+            }).catch(function() {});
+            // Actually, the simplest approach: load artworks via a small AJAX to list uploads
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/api/list_artworks.php', true);
+            xhr.onload = function() {
+                try {
+                    var data = JSON.parse(xhr.responseText);
+                    if (data.artworks) {
+                        renderPicker(data.artworks);
+                    } else {
+                        pickerFallback(picker);
+                    }
+                } catch(e) {
+                    pickerFallback(picker);
+                }
+            };
+            xhr.onerror = function() { pickerFallback(picker); };
+            xhr.send();
+        }
+
+        function pickerFallback(picker) {
+            // Fallback: scan uploads directory via image tags we build from known exhibits
+            picker.innerHTML = '<p style="color:#999;grid-column:1/-1;font-size:0.8rem;">Could not load artwork list. Type filenames manually or create the exhibit and edit artworks later.</p>' +
+                '<div style="grid-column:1/-1;"><label style="font-size:0.8rem;">Artwork filenames (comma separated):</label>' +
+                '<input type="text" id="exhibit-artworks-manual" style="width:100%;padding:0.5rem;border:1px solid #ccc;border-radius:4px;font-family:inherit;" placeholder="painting1.jpg, painting2.jpg"></div>';
+        }
+
+        function renderPicker(artworks) {
+            var picker = document.getElementById('exhibit-artwork-picker');
+            var html = '';
+            artworks.forEach(function(a) {
+                var fname = a.original || a.filename || a;
+                var thumb = a.thumbnail || '/uploads/' + fname;
+                html += '<div class="picker-thumb" data-filename="' + escHtml(fname) + '" onclick="togglePickerThumb(this)" style="cursor:pointer;border:2px solid transparent;border-radius:4px;overflow:hidden;position:relative;">';
+                html += '<img src="' + escHtml(thumb) + '" style="width:100%;height:80px;object-fit:cover;display:block;" alt="' + escHtml(fname) + '">';
+                html += '<div class="picker-check" style="display:none;position:absolute;top:2px;right:2px;background:#228B22;color:white;width:18px;height:18px;border-radius:50%;font-size:12px;text-align:center;line-height:18px;">✓</div>';
+                html += '</div>';
+            });
+            picker.innerHTML = html;
+        }
+
+        function togglePickerThumb(el) {
+            var fname = el.getAttribute('data-filename');
+            var check = el.querySelector('.picker-check');
+            var idx = selectedArtworks.indexOf(fname);
+            if (idx >= 0) {
+                selectedArtworks.splice(idx, 1);
+                el.style.borderColor = 'transparent';
+                check.style.display = 'none';
+            } else {
+                selectedArtworks.push(fname);
+                el.style.borderColor = '#228B22';
+                check.style.display = 'block';
+            }
+        }
+
+        function toggleDateFields() {
+            var dur = document.getElementById('exhibit-duration').value;
+            document.getElementById('date-fields').style.display = dur === 'permanent' ? 'none' : 'block';
+        }
+
+        function showExhibitForm(slug) {
+            var form = document.getElementById('exhibit-form');
+            form.style.display = 'block';
+            // Reset
+            document.getElementById('exhibit-slug').value = '';
+            document.getElementById('exhibit-title').value = '';
+            document.getElementById('exhibit-description').value = '';
+            document.getElementById('exhibit-duration').value = 'temporary';
+            document.getElementById('exhibit-start').value = '';
+            document.getElementById('exhibit-end').value = '';
+            document.getElementById('exhibit-venue').value = '';
+            document.getElementById('exhibit-reception').value = '';
+            document.getElementById('exhibit-press').value = '';
+            document.getElementById('exhibit-status').value = 'draft';
+            selectedArtworks = [];
+            document.querySelectorAll('.picker-thumb').forEach(function(el) {
+                el.style.borderColor = 'transparent';
+                el.querySelector('.picker-check').style.display = 'none';
+            });
+            toggleDateFields();
+            document.getElementById('exhibit-form-result').innerHTML = '';
+            form.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function editExhibit(slug) {
+            showExhibitForm();
+            var ex = allExhibits[slug];
+            if (!ex) return;
+            document.getElementById('exhibit-slug').value = slug;
+            document.getElementById('exhibit-title').value = ex.title || '';
+            document.getElementById('exhibit-description').value = ex.description || '';
+            document.getElementById('exhibit-duration').value = ex.duration || 'temporary';
+            document.getElementById('exhibit-start').value = ex.start_date || '';
+            document.getElementById('exhibit-end').value = ex.end_date || '';
+            document.getElementById('exhibit-venue').value = ex.venue || '';
+            document.getElementById('exhibit-reception').value = ex.opening_reception || '';
+            document.getElementById('exhibit-press').value = ex.press_release || '';
+            document.getElementById('exhibit-status').value = ex.status || 'draft';
+            selectedArtworks = (ex.artworks || []).slice();
+            // Highlight selected thumbs
+            document.querySelectorAll('.picker-thumb').forEach(function(el) {
+                var fname = el.getAttribute('data-filename');
+                if (selectedArtworks.indexOf(fname) >= 0) {
+                    el.style.borderColor = '#228B22';
+                    el.querySelector('.picker-check').style.display = 'block';
+                }
+            });
+            toggleDateFields();
+        }
+
+        function hideExhibitForm() {
+            document.getElementById('exhibit-form').style.display = 'none';
+        }
+
+        function saveExhibit() {
+            var slug = document.getElementById('exhibit-slug').value;
+            var title = document.getElementById('exhibit-title').value.trim();
+            if (!title) { alert('Title is required'); return; }
+
+            // Check for manual artworks input (fallback)
+            var manualInput = document.getElementById('exhibit-artworks-manual');
+            var arts = selectedArtworks.length > 0 ? selectedArtworks : [];
+            if (manualInput && manualInput.value.trim()) {
+                arts = manualInput.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+            }
+
+            var data = {
+                action: slug ? 'update' : 'create',
+                title: title,
+                description: document.getElementById('exhibit-description').value,
+                duration: document.getElementById('exhibit-duration').value,
+                start_date: document.getElementById('exhibit-start').value || null,
+                end_date: document.getElementById('exhibit-end').value || null,
+                venue: document.getElementById('exhibit-venue').value,
+                opening_reception: document.getElementById('exhibit-reception').value || null,
+                press_release: document.getElementById('exhibit-press').value,
+                status: document.getElementById('exhibit-status').value,
+                artworks: arts,
+                cover: arts.length > 0 ? arts[0] : null
+            };
+            if (slug) data.slug = slug;
+
+            var resultDiv = document.getElementById('exhibit-form-result');
+            resultDiv.innerHTML = '<span style="color:#666;">Saving...</span>';
+
+            exhibitApi(data).then(function(res) {
+                if (res.success) {
+                    resultDiv.innerHTML = '<span style="color:#228B22;">Saved!</span>';
+                    hideExhibitForm();
+                    loadExhibits();
+                } else {
+                    resultDiv.innerHTML = '<span style="color:#c00;">Error: ' + escHtml(res.error || 'Unknown') + '</span>';
+                }
+            }).catch(function(err) {
+                resultDiv.innerHTML = '<span style="color:#c00;">Error: ' + err.message + '</span>';
+            });
+        }
+
+        function deleteExhibit(slug) {
+            var ex = allExhibits[slug];
+            if (!confirm('Delete "' + (ex ? ex.title : slug) + '"? This cannot be undone.')) return;
+            exhibitApi({ action: 'delete', slug: slug }).then(function(res) {
+                if (res.success) loadExhibits();
+                else alert('Error: ' + (res.error || 'Unknown'));
+            });
+        }
     </script>
 </body>
 </html>

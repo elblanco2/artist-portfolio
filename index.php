@@ -98,6 +98,37 @@ $active_tag = isset($_GET['tag']) ? strtolower(trim($_GET['tag'])) : '';
 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $current_url = $protocol . '://' . $_SERVER['HTTP_HOST'];
 
+// Load exhibits
+$exhibits_file = __DIR__ . '/exhibits.json';
+$all_exhibits = file_exists($exhibits_file) ? json_decode(file_get_contents($exhibits_file), true) : [];
+if (!is_array($all_exhibits)) $all_exhibits = [];
+
+// Separate exhibits by time state (only published, unless authenticated)
+$current_exhibits = [];
+$permanent_exhibits = [];
+$past_exhibits = [];
+$upcoming_exhibits = [];
+$now = time();
+
+foreach ($all_exhibits as $slug => $ex) {
+    if ($ex['status'] !== 'published' && !$is_authenticated) continue;
+    $dur = $ex['duration'] ?? 'temporary';
+    if ($dur === 'permanent') {
+        $permanent_exhibits[$slug] = $ex;
+    } else {
+        $start_ts = !empty($ex['start_date']) ? strtotime($ex['start_date']) : null;
+        $end_ts = !empty($ex['end_date']) ? strtotime($ex['end_date']) : null;
+        if ($start_ts && $start_ts > $now) {
+            $upcoming_exhibits[$slug] = $ex;
+        } elseif ($end_ts && $end_ts < $now) {
+            $past_exhibits[$slug] = $ex;
+        } else {
+            $current_exhibits[$slug] = $ex;
+        }
+    }
+}
+$has_exhibits = !empty($current_exhibits) || !empty($permanent_exhibits) || !empty($past_exhibits) || !empty($upcoming_exhibits);
+
 // Check if specific artwork is being shared (for OG tags)
 $shared_artwork = isset($_GET['art']) ? $_GET['art'] : null;
 ?>
@@ -207,6 +238,7 @@ $shared_artwork = isset($_GET['art']) ? $_GET['art'] : null;
     <nav>
         <ul>
             <li><a href="#work">work</a></li>
+            <?php if ($has_exhibits): ?><li><a href="#exhibits">exhibits</a></li><?php endif; ?>
             <li><a href="#about">about</a></li>
             <li><a href="#contact">contact</a></li>
             <?php if ($site_url): ?><li><a href="<?= htmlspecialchars($site_url) ?>" target="_blank"><?= htmlspecialchars($site_name ?: 'home') ?></a></li><?php endif; ?>
@@ -329,6 +361,83 @@ $shared_artwork = isset($_GET['art']) ? $_GET['art'] : null;
             <?php endif; ?>
             <?php endif; ?>
         </section>
+
+        <?php if ($has_exhibits): ?>
+        <section id="exhibits" class="section">
+            <h2>exhibits</h2>
+            <?php
+            function renderExhibitCards($exhibits, $uploads_dir) {
+                foreach ($exhibits as $slug => $ex) {
+                    $cover = $ex['cover'] ?? ($ex['artworks'][0] ?? '');
+                    $count = count($ex['artworks'] ?? []);
+                    $pi = $cover ? pathinfo($cover) : null;
+                    $thumb = '';
+                    if ($pi && file_exists($uploads_dir . '/' . $pi['filename'] . '_small.' . $pi['extension'])) {
+                        $thumb = $pi['filename'] . '_small.' . $pi['extension'];
+                    } elseif ($cover && file_exists($uploads_dir . '/' . $cover)) {
+                        $thumb = $cover;
+                    }
+                    // Date badge
+                    $badge = '';
+                    $now = time();
+                    if (($ex['duration'] ?? '') === 'permanent') {
+                        $badge = 'Permanent';
+                    } elseif (!empty($ex['start_date']) && strtotime($ex['start_date']) > $now) {
+                        $badge = 'Opens ' . date('M j', strtotime($ex['start_date']));
+                    } elseif (!empty($ex['end_date']) && strtotime($ex['end_date']) < $now) {
+                        $badge = 'Closed';
+                    } elseif (!empty($ex['end_date'])) {
+                        $badge = 'Through ' . date('M j', strtotime($ex['end_date']));
+                    }
+                    if ($ex['status'] !== 'published') {
+                        $badge = 'Draft';
+                    }
+                    ?>
+                    <a href="/exhibit/<?= htmlspecialchars($slug) ?>" class="exhibit-card">
+                        <?php if ($thumb): ?>
+                        <img src="/uploads/<?= htmlspecialchars($thumb) ?>" alt="<?= htmlspecialchars($ex['title'] ?? '') ?>" loading="lazy">
+                        <?php else: ?>
+                        <div class="exhibit-card-empty"></div>
+                        <?php endif; ?>
+                        <div class="exhibit-card-info">
+                            <span class="exhibit-card-title"><?= htmlspecialchars($ex['title'] ?? 'Untitled') ?></span>
+                            <span class="exhibit-card-meta"><?= $count ?> work<?= $count !== 1 ? 's' : '' ?><?= $badge ? ' · ' . htmlspecialchars($badge) : '' ?></span>
+                        </div>
+                    </a>
+                    <?php
+                }
+            }
+            ?>
+
+            <?php if (!empty($upcoming_exhibits)): ?>
+            <h3 class="exhibit-group-label">upcoming</h3>
+            <div class="exhibits-grid">
+                <?php renderExhibitCards($upcoming_exhibits, $uploads_dir); ?>
+            </div>
+            <?php endif; ?>
+
+            <?php if (!empty($current_exhibits)): ?>
+            <h3 class="exhibit-group-label">current</h3>
+            <div class="exhibits-grid">
+                <?php renderExhibitCards($current_exhibits, $uploads_dir); ?>
+            </div>
+            <?php endif; ?>
+
+            <?php if (!empty($permanent_exhibits)): ?>
+            <h3 class="exhibit-group-label">permanent collection</h3>
+            <div class="exhibits-grid">
+                <?php renderExhibitCards($permanent_exhibits, $uploads_dir); ?>
+            </div>
+            <?php endif; ?>
+
+            <?php if (!empty($past_exhibits)): ?>
+            <h3 class="exhibit-group-label">past</h3>
+            <div class="exhibits-grid">
+                <?php renderExhibitCards($past_exhibits, $uploads_dir); ?>
+            </div>
+            <?php endif; ?>
+        </section>
+        <?php endif; ?>
 
         <section id="about" class="section">
             <h2>about</h2>
