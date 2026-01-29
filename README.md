@@ -11,7 +11,7 @@ A complete artist portfolio site with deep zoom viewing, email-to-gallery upload
 - Masonry grid gallery layout
 - Deep zoom viewer (OpenSeadragon) — collectors see every brushstroke
 - Auto-generates multiple image sizes (thumbnail, medium, large, social)
-- Email-to-gallery — send artwork from your phone, it appears on your site
+- Email-to-gallery — email `newart@painttwits.com` from your phone, artwork appears on your site (requires network registration)
 - Account settings with backup export and account deletion
 - Location-based artist map (via painttwits network)
 - Social sharing (Bluesky, Twitter, Pinterest)
@@ -96,17 +96,19 @@ Upload images to the `uploads/` folder. They appear on your site automatically.
 
 Log in via Google OAuth and use the upload button. Drag and drop supported.
 
-### Method 3: Email-to-Gallery
+### Method 3: Email-to-Gallery (requires painttwits network)
 
-Send an email with your artwork attached:
+If you registered with the painttwits network during setup, you can email artwork directly to your gallery:
 
 ```
-To: artwork@yoursite.com
+To: newart@painttwits.com
 Subject: "Sunset Over Miami" 24x36 oil on canvas
 Attachment: sunset.jpg
 ```
 
-The title, dimensions, and medium are parsed from the subject line. See [email-handler/README.md](email-handler/README.md) for setup.
+The painttwits server identifies you by your sender email, processes the image (generates thumbnails, DZI tiles for deep zoom), and pushes everything to your site automatically. Title, dimensions, and medium are parsed from the subject line.
+
+This does **not** require any email configuration on your hosting — all processing happens on painttwits.com and the finished artwork is delivered to your site via API.
 
 ---
 
@@ -199,11 +201,14 @@ When you upload an image, the system automatically creates:
 ## painttwits Network
 
 Joining the painttwits network is optional. When connected, your gallery:
+- **Email-to-gallery** — email artwork to `newart@painttwits.com` and it appears on your site automatically (no email server config needed on your end)
 - Appears on the painttwits.com discovery map
 - Gets a backlink from painttwits.com
 - Can use shared Google OAuth (no need to set up your own)
 - Gets social media posting to the painttwits Bluesky account
 - Keeps your own domain — you own your content
+
+Without the network, your gallery still works — you just upload artwork manually via the web interface or FTP.
 
 To join, check "Join the painttwits network" during the setup wizard, or add to your config:
 
