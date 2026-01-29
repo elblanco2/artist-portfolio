@@ -1,13 +1,13 @@
 #!/bin/bash
 #
-# Artist Portfolio - Quick Deploy Script
+# painttwits-artist -Quick Deploy Script
 #
 # Usage:
 #   ./deploy.sh                    # Deploy to current directory
 #   ./deploy.sh /path/to/webroot   # Deploy to specified directory
 #
 # One-liner (download + deploy):
-#   bash <(curl -sSL https://raw.githubusercontent.com/elblanco2/artist-portfolio/main/deploy.sh) /path/to/webroot
+#   bash <(curl -sSL https://raw.githubusercontent.com/elblanco2/painttwits-artist/main/deploy.sh) /path/to/webroot
 #
 
 set -e
@@ -20,7 +20,7 @@ NC='\033[0m'
 
 echo -e "${BLUE}"
 echo "============================================"
-echo "  Artist Portfolio - Deploy"
+echo "  painttwits-artist -Deploy"
 echo "============================================"
 echo -e "${NC}"
 
@@ -30,7 +30,7 @@ TARGET_DIR="${1:-.}"
 if [ ! -f "index.php" ] && [ ! -f "$TARGET_DIR/index.php" ]; then
     echo -e "${YELLOW}Downloading latest release...${NC}"
     TEMP_DIR=$(mktemp -d)
-    REPO_URL="https://github.com/elblanco2/artist-portfolio"
+    REPO_URL="https://github.com/elblanco2/painttwits-artist"
 
     if command -v git &>/dev/null; then
         git clone --depth 1 "$REPO_URL" "$TEMP_DIR/repo" 2>/dev/null && SOURCE_DIR="$TEMP_DIR/repo"
@@ -40,7 +40,7 @@ if [ ! -f "index.php" ] && [ ! -f "$TARGET_DIR/index.php" ]; then
         echo "git not available, trying zip download..."
         curl -sSL "$REPO_URL/archive/main.zip" -o "$TEMP_DIR/repo.zip"
         unzip -q "$TEMP_DIR/repo.zip" -d "$TEMP_DIR"
-        SOURCE_DIR="$TEMP_DIR/artist-portfolio-main"
+        SOURCE_DIR="$TEMP_DIR/painttwits-artist-main"
     fi
 
     if [ ! -f "$SOURCE_DIR/index.php" ]; then
@@ -115,5 +115,5 @@ echo -e "Alternative (manual setup):"
 echo -e "  Copy artist_config.sample.php to artist_config.php"
 echo -e "  and edit with your details."
 echo ""
-echo -e "Docs: https://github.com/elblanco2/artist-portfolio"
+echo -e "Docs: https://github.com/elblanco2/painttwits-artist"
 echo ""

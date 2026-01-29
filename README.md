@@ -1,40 +1,24 @@
-# Artist Portfolio Template
+# painttwits-artist
 
-**Your own art gallery website in 5 minutes**
+**Self-hosted artist gallery for the [painttwits](https://painttwits.com) network**
 
-This template gives you a professional artist portfolio with deep zoom viewing, responsive images, and optional email-to-gallery uploads. Perfect for shared hosting (Bluehost, HostGator, SiteGround, etc).
+A complete artist portfolio site with deep zoom viewing, email-to-gallery uploads, account management, and optional federation with the painttwits discovery network. Designed for shared hosting (Bluehost, HostGator, SiteGround, etc).
 
 ---
 
-## What You Get
+## Features
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  YOUR-SITE.COM                                    [Login]   │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│     ┌─────────┐  ┌─────────┐  ┌─────────┐                  │
-│     │ ▓▓▓▓▓▓▓ │  │ ░░░░░░░ │  │ ▒▒▒▒▒▒▒ │   Gallery Grid  │
-│     │ ▓▓▓▓▓▓▓ │  │ ░░░░░░░ │  │ ▒▒▒▒▒▒▒ │                  │
-│     └─────────┘  └─────────┘  └─────────┘                  │
-│                                                             │
-│     "Sunset"      "Portrait"    "Abstract"                 │
-│      24x36          16x20         30x40                    │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
-│  Click any artwork to view full screen with deep zoom →    │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**Features:**
 - Masonry grid gallery layout
-- Deep zoom viewer (OpenSeaDragon) - collectors see every brushstroke
+- Deep zoom viewer (OpenSeadragon) — collectors see every brushstroke
 - Auto-generates multiple image sizes (thumbnail, medium, large, social)
+- Email-to-gallery — send artwork from your phone, it appears on your site
+- Account settings with backup export and account deletion
+- Location-based artist map (via painttwits network)
+- Social sharing (Bluesky, Twitter, Pinterest)
 - Mobile responsive
-- SEO-friendly with proper meta tags
-- Social sharing (Twitter, Bluesky, Pinterest)
-- Optional: Email-to-gallery uploads
-- Optional: Google OAuth login for editing
+- SEO-friendly meta tags and Open Graph
+- Google OAuth login
+- Dark mode support
 
 ---
 
@@ -43,18 +27,18 @@ This template gives you a professional artist portfolio with deep zoom viewing, 
 ### Step 1: Download & Upload
 
 **Option A: Download ZIP**
-1. [Download ZIP](https://github.com/elblanco2/artist-portfolio/archive/main.zip)
+1. [Download ZIP](https://github.com/elblanco2/painttwits-artist/archive/main.zip)
 2. Extract and upload contents to your web hosting (via cPanel File Manager or FTP)
 
 **Option B: Git Clone**
 ```bash
-git clone https://github.com/elblanco2/artist-portfolio.git
+git clone https://github.com/elblanco2/painttwits-artist.git
 # Upload contents to your web hosting
 ```
 
 **Option C: One-Line Deploy (SSH)**
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/elblanco2/artist-portfolio/main/deploy.sh) /path/to/public_html
+bash <(curl -sSL https://raw.githubusercontent.com/elblanco2/painttwits-artist/main/deploy.sh) /path/to/public_html
 ```
 
 ### Step 2: Run Setup Wizard
@@ -67,15 +51,15 @@ https://YOUR-DOMAIN.COM/setup.php
 The setup wizard will:
 - Ask for your name and email
 - Configure your gallery automatically
-- Optionally connect you to the painttwits network for discovery
+- Optionally register you with the painttwits network for discovery
 
-**That's it!** No config files to edit manually.
+**That's it.** No config files to edit manually.
 
 ---
 
 ## Manual Configuration (Alternative)
 
-If you prefer to configure manually instead of using the setup wizard:
+If you prefer to skip the setup wizard:
 
 1. Copy `artist_config.sample.php` to `artist_config.php`
 2. Edit with your details:
@@ -83,21 +67,18 @@ If you prefer to configure manually instead of using the setup wizard:
 ```php
 <?php
 return [
-    // === YOUR INFO ===
     'name' => 'Jane Artist',
     'email' => 'jane@example.com',
     'location' => 'Brooklyn, NY',
     'bio' => 'Contemporary painter exploring light and shadow.',
 
-    // === YOUR SITE ===
     'site_name' => 'Jane Artist Studio',
     'site_domain' => 'janeartist.com',
     'site_url' => 'https://janeartist.com',
 
-    // === DISPLAY OPTIONS ===
-    'show_prices' => true,       // Show prices on artwork
-    'contact_form' => true,      // Enable contact form
-    'show_site_badge' => false,  // Hide "powered by" badge
+    'show_prices' => true,
+    'contact_form' => true,
+    'show_site_badge' => false,
 ];
 ```
 
@@ -107,29 +88,50 @@ return [
 
 ## Uploading Artwork
 
-### Method 1: FTP/File Manager (Simplest)
+### Method 1: FTP / File Manager
 
-1. Upload images to the `uploads/` folder
-2. Name them descriptively: `sunset-over-miami-24x36.jpg`
-3. They'll appear on your site automatically
+Upload images to the `uploads/` folder. They appear on your site automatically.
 
-### Method 2: Web Upload (Requires OAuth)
+### Method 2: Web Upload
 
-1. Set up Google OAuth (see Configuration above)
-2. Log in to your site
-3. Click "Upload" button
-4. Drag & drop images
+Log in via Google OAuth and use the upload button. Drag and drop supported.
 
 ### Method 3: Email-to-Gallery
 
-See [email-handler/README.md](email-handler/README.md) for setup.
+Send an email with your artwork attached:
 
-Send an email like:
 ```
 To: artwork@yoursite.com
 Subject: "Sunset Over Miami" 24x36 oil on canvas
 Attachment: sunset.jpg
 ```
+
+The title, dimensions, and medium are parsed from the subject line. See [email-handler/README.md](email-handler/README.md) for setup.
+
+---
+
+## Account Management
+
+### Settings
+
+Available at `/settings.php` when logged in:
+- Update profile (name, bio, location)
+- Set map location for painttwits network discovery
+- Manage gallery preferences
+
+### Backup & Export
+
+Download a ZIP of all your artwork, metadata, and profile before making changes:
+- Available at Settings > Danger Zone > "Download All Artwork (ZIP)"
+- Includes originals, resized images, DZI tiles, and metadata
+
+### Account Deletion
+
+Delete your account from Settings > Danger Zone:
+- Downloads available before deletion
+- Removes all local files and uploads
+- Notifies the painttwits central server to free your email for re-registration
+- Managed subdomain artists get their subdomain released
 
 ---
 
@@ -137,24 +139,31 @@ Attachment: sunset.jpg
 
 ```
 your-site/
-├── index.php              # Gallery home page
-├── art.php                # Single artwork view
-├── zoom.php               # Deep zoom viewer
-├── upload.php             # Upload handler
-├── auth.php               # OAuth login
-├── settings.php           # Artist settings
-├── artist_config.php      # Your configuration (create this!)
-├── artist_config.sample.php
-├── .htaccess              # URL rewrites
+├── index.php                # Gallery home page
+├── art.php                  # Single artwork view
+├── zoom.php                 # Deep zoom viewer
+├── upload.php               # Upload handler
+├── auth.php                 # OAuth login
+├── settings.php             # Artist settings, backup, deletion
+├── setup.php                # First-run setup wizard
+├── artist_config.php        # Your configuration (generated by setup)
+├── artist_config.sample.php # Example config
+├── artwork_meta.json        # Artwork metadata store
+├── .htaccess                # URL rewrites
+├── api/
+│   ├── export.php           # Artwork ZIP export
+│   ├── location.php         # Map location save/lookup
+│   └── receive_artwork.php  # Email-to-gallery receiver
 ├── assets/
 │   ├── css/
-│   │   ├── style.css      # Main styles
-│   │   └── zoom.css       # Zoom viewer styles
+│   │   ├── style.css
+│   │   └── zoom.css
 │   └── js/
-│       └── upload.js      # Upload handling
-├── uploads/               # Your artwork goes here
-│   └── dzi/              # Auto-generated zoom tiles
-└── email-handler/         # Optional email uploads
+│       ├── upload.js
+│       └── theme.js
+├── uploads/                 # Your artwork
+│   └── dzi/                 # Auto-generated zoom tiles
+└── email-handler/           # Optional email upload config
 ```
 
 ---
@@ -170,23 +179,7 @@ When you upload an image, the system automatically creates:
 | `_medium.jpg` | 800px | Gallery grid |
 | `_small.jpg` | 400px | Thumbnails |
 | `_social.jpg` | 1200x630 | Social media cards |
-| DZI tiles | Pyramid | Deep zoom (images ≥3000px) |
-
-Example: Upload `sunset.jpg` (4000x3000px) and get:
-```
-uploads/
-├── sunset.jpg           # Original
-├── sunset_large.jpg     # 1200px
-├── sunset_medium.jpg    # 800px
-├── sunset_small.jpg     # 400px
-├── sunset_social.jpg    # 1200x630
-└── dzi/
-    ├── sunset.dzi       # Tile descriptor
-    └── sunset_files/    # Tile pyramid
-        ├── 0/
-        ├── 1/
-        └── ...
-```
+| DZI tiles | Pyramid | Deep zoom (images 3000px+) |
 
 ---
 
@@ -194,62 +187,26 @@ uploads/
 
 **Minimum:**
 - PHP 7.4+
-- GD extension (usually pre-installed)
+- GD extension
 
 **Recommended:**
 - PHP 8.0+
 - Imagick extension (better image quality)
 - IMAP extension (for email uploads)
 
-**Check your hosting:**
-```php
-<?php
-phpinfo();
-// Look for: GD, Imagick, IMAP
-```
-
 ---
 
-## Hosting Recommendations
+## painttwits Network
 
-Works great on:
-- **Shared hosting**: Bluehost, HostGator, SiteGround, DreamHost
-- **VPS**: DigitalOcean, Linode, Vultr
-- **Managed**: Cloudways, RunCloud
+Joining the painttwits network is optional. When connected, your gallery:
+- Appears on the painttwits.com discovery map
+- Gets a backlink from painttwits.com
+- Can use shared Google OAuth (no need to set up your own)
+- Gets social media posting to the painttwits Bluesky account
+- Keeps your own domain — you own your content
 
-Typical cost: **$3-10/month** for shared hosting
+To join, check "Join the painttwits network" during the setup wizard, or add to your config:
 
----
-
-## Troubleshooting
-
-**Images not showing?**
-- Check `uploads/` folder permissions (755)
-- Verify PHP can write to directory
-
-**Deep zoom not working?**
-- Images must be ≥3000px for DZI generation
-- Check PHP memory_limit (recommend 256M for large images)
-
-**OAuth login failing?**
-- Verify Google Client ID is correct
-- Check callback URL matches exactly
-- Email in config must match Google account
-
-**Need help?**
-- Check [TROUBLESHOOTING.md](../../TROUBLESHOOTING.md)
-- Open issue on GitHub
-- Email support@painttwits.com
-
----
-
-## Join the painttwits Network (Optional)
-
-Want your gallery discoverable on painttwits.com?
-
-**Easy way:** Check "Join the painttwits network" during setup wizard.
-
-**Manual way:** Add to your config:
 ```php
 'painttwits_network' => [
     'enabled' => true,
@@ -257,19 +214,11 @@ Want your gallery discoverable on painttwits.com?
 ],
 ```
 
-Benefits:
-- Appear in location-based artist search
-- Backlink from painttwits.com
-- Shared Google OAuth (no need to set up your own)
-- Video intro tool access
-- Part of curated artist community
-- Keep your own domain
-
 ---
 
 ## License
 
-MIT License - free for personal and commercial use.
+MIT License — free for personal and commercial use.
 
 ---
 
