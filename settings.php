@@ -102,9 +102,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
 
             if ($delete_success) {
-                // Clear session and redirect
                 session_destroy();
-                header('Location: ' . ($site_url ?: '/') . '?deleted=1');
+                // Show confirmation page and stop
+                echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+                <title>Account Deleted</title>
+                <style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f5f5f5;color:#333;}
+                .card{background:#fff;border-radius:12px;padding:48px;max-width:480px;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,0.08);}
+                h1{font-size:1.5rem;margin:0 0 16px;}p{color:#666;line-height:1.6;margin:0 0 12px;}
+                .check{font-size:3rem;margin-bottom:16px;}
+                a{color:#2563eb;text-decoration:none;}a:hover{text-decoration:underline;}</style></head>
+                <body><div class="card">
+                <div class="check">&#10003;</div>
+                <h1>Account Deleted</h1>
+                <p>Your account and all artwork have been permanently removed.</p>
+                <p>Your email address has been freed &mdash; you can re-register at any time by running the <a href="/setup.php">setup wizard</a> again.</p>
+                <p style="margin-top:24px;"><a href="https://painttwits.com">Visit painttwits.com</a></p>
+                </div></body></html>';
                 exit;
             }
         }
@@ -744,7 +757,7 @@ function deleteDirectory($dir) {
                            autocomplete="off"
                            required>
 
-                    <button type="submit" class="btn-delete" id="delete-btn" disabled>
+                    <button type="submit" class="btn-delete" id="delete-btn">
                         Delete My Account
                     </button>
                 </form>
@@ -754,13 +767,22 @@ function deleteDirectory($dir) {
 
     <script src="assets/js/theme.js"></script>
     <script>
-        var expectedConfirm = '<?= addslashes(strtolower($confirm_text)) ?>';
-        var input = document.getElementById('confirm_subdomain');
-        var btn = document.getElementById('delete-btn');
+        (function() {
+            var expectedConfirm = '<?= addslashes(strtolower($confirm_text)) ?>';
+            var input = document.getElementById('confirm_subdomain');
+            var btn = document.getElementById('delete-btn');
 
-        input.addEventListener('input', function() {
-            btn.disabled = input.value.toLowerCase() !== expectedConfirm;
-        });
+            if (input && btn && expectedConfirm) {
+                // Start disabled, enable when text matches
+                btn.disabled = true;
+                input.addEventListener('input', function() {
+                    btn.disabled = input.value.trim().toLowerCase() !== expectedConfirm;
+                });
+                input.addEventListener('keyup', function() {
+                    btn.disabled = input.value.trim().toLowerCase() !== expectedConfirm;
+                });
+            }
+        })();
 
         function confirmDelete() {
             return confirm('Are you absolutely sure you want to delete your account?\n\nThis will permanently delete:\n- All your uploaded artwork\n- Your gallery and profile\n- Your connection to the painttwits network\n\nThis cannot be undone!');
