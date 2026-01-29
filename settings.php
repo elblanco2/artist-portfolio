@@ -82,23 +82,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if (strtolower($confirm_input) !== strtolower($confirm_text)) {
             $delete_error = 'Confirmation text does not match. Please type it exactly.';
         } else {
-            // Step 1: Notify central API (if connected to painttwits network)
+            // Step 1: Notify central API (best effort — don't block local deletion)
             if (!empty($central_api) && !empty($api_key)) {
                 $artist_id_val = $config['artist_id'] ?? '';
-                $result = deleteViaCentralApi($central_api, $api_key, $artist_id_val);
-                if (!$result['success']) {
-                    $delete_error = $result['error'] ?? 'Failed to delete from central server.';
-                }
+                $central_result = deleteViaCentralApi($central_api, $api_key, $artist_id_val);
+                // Log but don't block — artist should always be able to delete locally
             }
 
-            // Step 2: Local cleanup (always, even if central fails — artist wants out)
-            if (empty($delete_error)) {
-                $result = deleteLocalAccount();
-                if ($result['success']) {
-                    $delete_success = true;
-                } else {
-                    $delete_error = $result['error'] ?? 'Failed to delete local account.';
-                }
+            // Step 2: Local cleanup (always runs)
+            $result = deleteLocalAccount();
+            if ($result['success']) {
+                $delete_success = true;
+            } else {
+                $delete_error = $result['error'] ?? 'Failed to delete local account.';
             }
 
             if ($delete_success) {
@@ -731,7 +727,8 @@ function deleteDirectory($dir) {
                 <h2>Delete Account</h2>
                 <p>
                     Permanently delete your account and all artwork. This action cannot be undone.
-                    All uploaded images will be deleted and your account will be removed from the painttwits network.
+                    All uploaded images will be deleted<?= !empty($subdomain) ? ' and your subdomain will be released' : '' ?>.
+                    <?php if (!empty($central_api)): ?>Your account will be removed from the painttwits network.<?php endif; ?>
                 </p>
 
                 <p style="margin-bottom:16px;">
