@@ -685,7 +685,7 @@ function getEmailTemplate($content) {
         <tr><td align="center">
             <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;">
                 <tr><td style="background:#111;padding:24px;text-align:center;">
-                    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:normal;letter-spacing:2px;">painttwits</h1>
+                    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:normal;letter-spacing:2px;">Painttwits</h1>
                 </td></tr>
                 <tr><td style="padding:32px 24px;">' . $content . '</td></tr>
                 <tr><td style="background:#f9f9f9;padding:20px 24px;text-align:center;border-top:1px solid #eee;">
@@ -700,7 +700,7 @@ function getEmailTemplate($content) {
 
 function sendNotApprovedEmail($email, $name, $saved_count = 0) {
     $name = $name ?: 'there';
-    $subject = "Thanks for your interest in painttwits!";
+    $subject = "Thanks for your interest in Painttwits!";
 
     $saved_message = '';
     if ($saved_count > 0) {
@@ -710,14 +710,14 @@ function sendNotApprovedEmail($email, $name, $saved_count = 0) {
     }
 
     $body = '<h2 style="margin:0 0 16px;color:#111;font-size:20px;font-weight:normal;">Hey ' . htmlspecialchars($name) . ',</h2>
-        <p style="margin:0 0 16px;color:#333;font-size:15px;line-height:1.6;">Thanks for emailing your artwork to painttwits! We\'d love to feature your work.</p>
+        <p style="margin:0 0 16px;color:#333;font-size:15px;line-height:1.6;">Thanks for emailing your artwork to Painttwits! We\'d love to feature your work.</p>
         ' . $saved_message . '
         <p style="margin:0 0 16px;color:#333;font-size:15px;line-height:1.6;">To get started, apply for your own artist page. Once approved, you\'ll get your own subdomain at <strong>yourname.painttwits.com</strong>.</p>
         <div style="margin:24px 0;text-align:center;">
             <a href="https://painttwits.com/apply.php?email=' . urlencode($email) . '" style="display:inline-block;background:#111;color:#fff;padding:14px 28px;text-decoration:none;border-radius:6px;font-size:16px;">Apply Now</a>
         </div>
         <p style="margin:0 0 16px;color:#333;font-size:15px;line-height:1.6;">Once approved, just email your artwork to <strong>newart@painttwits.com</strong> and it\'ll be added automatically.</p>
-        <p style="margin:0;color:#888;font-size:14px;">— The painttwits team</p>';
+        <p style="margin:0;color:#888;font-size:14px;">— The Painttwits team</p>';
     sendEmail($email, $subject, $body);
 }
 
@@ -731,7 +731,7 @@ function sendNoAttachmentsEmail($email, $name) {
             <li>Use the subject line for the title, e.g. <em>"Sunset" 24x36 oil on canvas</em></li>
             <li>Send to <strong>newart@painttwits.com</strong></li>
         </ol>
-        <p style="margin:0;color:#888;font-size:14px;">— The painttwits team</p>';
+        <p style="margin:0;color:#888;font-size:14px;">— The Painttwits team</p>';
     sendEmail($email, $subject, $body);
 }
 
@@ -757,7 +757,7 @@ function sendSuccessEmail($email, $artist, $artworks) {
         <div style="margin:24px 0;text-align:center;">
             <a href="https://' . $artist['subdomain'] . '.painttwits.com" style="display:inline-block;background:#111;color:#fff;padding:14px 28px;text-decoration:none;border-radius:6px;font-size:16px;">View Your Gallery</a>
         </div>
-        <p style="margin:0;color:#888;font-size:14px;">— The painttwits team</p>';
+        <p style="margin:0;color:#888;font-size:14px;">— The Painttwits team</p>';
     sendEmail($email, $subject, $body);
 }
 
@@ -771,6 +771,6 @@ function sendFailureEmail($email, $name) {
             <li>Keep images under 10MB each</li>
             <li>Ideal resolution: 3000-5000px on the long edge</li>
         </ul>
-        <p style="margin:0;color:#888;font-size:14px;">— The painttwits team</p>';
+        <p style="margin:0;color:#888;font-size:14px;">— The Painttwits team</p>';
     sendEmail($email, $subject, $body);
 }
